@@ -1,0 +1,21 @@
+{
+  "name": "box-ed",
+  "private": true,
+  "version": "0.7.0",
+  "type": "module",
+  "description": "A 3D web app where you fill virtual moving boxes with digital things — links to videos, songs, files, photos — represented as physical items like CDs, cassettes, and floppy disks.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "vite": "^5.4.0"
+  }
+}
