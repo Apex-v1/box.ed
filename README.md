@@ -8,23 +8,6 @@ A 3D web app where you fill virtual moving boxes with digital things — links t
 
 Most digital storage is invisible. box.ed makes it physical. You buy a moving box from a knockoff Office Depot ("Office Biz"), it gets delivered to your floor, you click it to open it, and inside you arrange links and files as 3D items you can drag around, label with marker, and rearrange. Each item represents something digital — a YouTube video shows up as a CD with the video title scrawled on it, a PDF becomes a manila folder, a tweet becomes a sticky note.
 
-## Run it locally
-
-You need Node.js (v18 or newer). Then:
-
-```bash
-git clone https://github.com/YOUR_USERNAME/box-ed.git
-cd box-ed
-npm install
-npm run dev
-```
-
-Vite will start a local server and print a URL (usually `http://localhost:5173`). Open it in your browser. Hot-reload is on, so edits save and reflect instantly.
-
-## Deploy
-
-[Vercel](https://vercel.com) auto-detects Vite projects and deploys with zero config. Push the repo, click "New Project" in Vercel, point at the repo, click Deploy. It runs `npm run build` (which produces `dist/`) and serves the static files. About 90 seconds end-to-end the first time.
-
 ## Project structure
 
 ```
@@ -72,32 +55,5 @@ The visualizer gives you ~20 sliders per prop (CD radius, cassette label tilt, p
 
 No backend yet. State lives in React; nothing persists across page reloads.
 
-## What's working
-
-- Floor scene with multiple boxes, drag-to-move with mass-based physics
-- Buy a new box from "Office Biz" → it gets delivered to the floor
-- Click a box to open it (orthographic isometric camera)
-- Six item types: CD, cassette, floppy, photo, post-it, manila folder
-- Right-click items for edit/delete menu
-- Drag items with cursor-velocity-driven dangle physics
-- Click box body to set/edit the side label
-- Add new items via "BizBay" (eBay knockoff) with mock URL scraping
-- Close box → flaps fold inward + tape strip animation → return to floor
-- Per-box state (each box owns its own items and label)
-
-## What's not working yet
-
-- No real persistence (localStorage UUID + Upstash planned)
-- No real OG-tag scraping (mock responses only)
-- No file uploads (Vercel Blob planned)
-- No sharing / view-only mode
-- No mobile / touch optimization pass
-- Cardboard box itself is procedural-only (item models can be swapped in)
-
-## Contributing
-
-Currently solo project. If you've stumbled across this and want to play with it, fork freely. The MIT license covers the code; the "box.ed" name and any branding are not licensed for derivative works.
-
 ## License
-
 [MIT](LICENSE)
