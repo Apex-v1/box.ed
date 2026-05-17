@@ -2082,7 +2082,7 @@ function initOpenBoxScene(mount, boxStyle, initialItems, initialLabel, callbacks
   scene.add(makeSmallFloor());
 
   const aspectBox = boxStyle?.aspect || { w: 1.55, h: 1.0, d: 1.2 };
-  const boxSize = { x: 2.0 * aspectBox.w, y: 1.4 * aspectBox.h, z: 2.0 * aspectBox.d };
+  const boxSize = { x: 3.05 * aspectBox.w, y: 3.05 * aspectBox.h, z: 3.05 * aspectBox.d };
   const boxBundle = makeOpenBox(boxSize, initialLabel);
   scene.add(boxBundle.group);
   // Pickable surfaces for click detection (box body, not flaps, not items)
