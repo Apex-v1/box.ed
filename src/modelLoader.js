@@ -6,7 +6,7 @@
 //
 //   1. Drop your .glb files into /public/models/ in your project.
 //      Recommended naming: cd.glb, cassette.glb, floppy.glb, photo.glb,
-//      postit.glb, manila.glb, box.glb. (Match the names in MODEL_PATHS below.)
+//      postit.glb, manila.glb, box.glb. (Match the keys in MODEL_REGISTRY below.)
 //
 //   2. In your main entry point (index.js, main.jsx, or App.jsx — wherever
 //      your app first mounts), import and call preloadModels() once on
@@ -30,46 +30,109 @@
 //          return makeProceduralCD(color, title); // existing code as fallback
 //        }
 //
-// ============================================================================
-// IMPORTANT: This file uses GLTFLoader from three's examples folder. In your
-// real project (not the artifact sandbox) the imports below will work because
-// the full three package is installed.
+// ----------------------------------------------------------------------------
+// REAL-WORLD SIZING (added in v0.8)
+// ----------------------------------------------------------------------------
+// 3D models from different sources come in random scales — one might be in
+// meters, another in centimeters, another in arbitrary "modeling units."
+// We can't trust the file's intrinsic size.
+//
+// Instead, each entry in MODEL_REGISTRY declares a targetSize in scene units,
+// based on real-world physical dimensions. After loading, we compute the
+// model's bounding box and scale it so its largest dimension matches the
+// target. This way the box and all items stay proportional regardless of
+// how each modeler exported their file.
+//
+// SCENE UNIT CONVENTION:
+//   1 scene unit ≈ 10 cm (so a 12 cm CD has targetSize 1.2)
+//   This matches the procedural item sizes in box_ed_flow_prototype.jsx,
+//   where boxSize for a medium box is ~3.1 units wide ≈ 31 cm.
 // ============================================================================
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ----------------------------------------------------------------------------
-// MODEL_PATHS — registry of which item types map to which files.
-// Add or remove entries as you acquire models.
-// Items NOT listed here will fall back to procedural geometry forever.
+// MODEL_REGISTRY — files + target real-world sizes.
+// Each entry: { path, targetSize }
+//   path:       URL to the GLB file (served from /public/models/)
+//   targetSize: scene units the model's longest dimension should occupy
+//               (1 scene unit = 10 cm). See the table below for real-world refs.
+//
+// Real-world reference dimensions (longest side):
+//   CD               12 cm   → 1.2
+//   Cassette         10 cm   → 1.0
+//   Floppy 3.5"       9.5 cm → 0.95
+//   Photo (4×6)      15 cm   → 1.5
+//   Photo (5×7)      18 cm   → 1.8
+//   Post-it (3×3)     7.6 cm → 0.76
+//   Manila folder    30 cm   → 3.0
+//   VHS              18.7 cm → 1.87
+//   USB stick         5 cm   → 0.5
+//   Game cartridge    9 cm   → 0.9
+//   Standard box     45 cm   → 4.5
 // ----------------------------------------------------------------------------
-const MODEL_PATHS = {
-  cd:       '/models/cd.glb',
-  cassette: '/models/cassette.glb',
-  floppy:   '/models/floppy.glb',
-  photo:    '/models/photo.glb',
-  postit:   '/models/postit.glb',
-  manila:   '/models/manila.glb',
-  box:      '/models/box.glb',
+const MODEL_REGISTRY = {
+  cd:       { path: '/models/cd.glb',       targetSize: 1.2 },
+  cassette: { path: '/models/cassette.glb', targetSize: 1.0 },
+  floppy:   { path: '/models/floppy.glb',   targetSize: 0.95 },
+  photo:    { path: '/models/photo.glb',    targetSize: 1.5 },
+  postit:   { path: '/models/postit.glb',   targetSize: 0.76 },
+  manila:   { path: '/models/manila.glb',   targetSize: 3.0 },
+  box:      { path: '/models/box.glb',      targetSize: 4.5 },
   // Future additions:
-  // 'cd-case':   '/models/cd-case.glb',
-  // 'dvd-case':  '/models/dvd-case.glb',
-  // 'vhs':       '/models/vhs.glb',
-  // 'usb':       '/models/usb.glb',
-  // 'gameboy':   '/models/gameboy-cart.glb',
-  // ...
+  // vhs:      { path: '/models/vhs.glb',         targetSize: 1.87 },
+  // 'cd-case':   { path: '/models/cd-case.glb',  targetSize: 1.4 },
+  // 'dvd-case':  { path: '/models/dvd-case.glb', targetSize: 1.9 },
+  // usb:      { path: '/models/usb.glb',         targetSize: 0.5 },
+  // gameboy:  { path: '/models/gameboy-cart.glb', targetSize: 0.9 },
 };
 
 // ----------------------------------------------------------------------------
-// Internal cache: id → loaded GLTF scene (THREE.Group).
+// Internal cache: id → loaded GLTF scene (THREE.Group), pre-scaled to target size.
 // Calling getModel(id) returns a cloned instance, never the original.
 // ----------------------------------------------------------------------------
 const modelCache = new Map();
 let preloadPromise = null;
 
 /**
- * Preload all models declared in MODEL_PATHS in parallel.
+ * Normalize a loaded model: scale so its largest dimension matches the target,
+ * recenter horizontally so its center sits at x=0, z=0, and place its bottom
+ * at y=0 so it rests on the floor cleanly.
+ *
+ * Doing this once on the cached scene means every clone returned by getModel()
+ * inherits the correct size and pivot.
+ */
+function normalizeModelSize(scene, targetSize, id) {
+  // Compute bounding box in the model's native scale
+  const bbox = new THREE.Box3().setFromObject(scene);
+  const size = new THREE.Vector3();
+  bbox.getSize(size);
+  const largestDim = Math.max(size.x, size.y, size.z);
+  if (largestDim === 0) {
+    console.warn(`[modelLoader] ${id} has zero-size bounding box — skipping normalize`);
+    return;
+  }
+
+  // Scale uniformly so the largest dimension equals targetSize
+  const scaleFactor = targetSize / largestDim;
+  scene.scale.setScalar(scaleFactor);
+
+  // Recompute bounding box in post-scale units, then center horizontally and
+  // rest the bottom at y=0. (Must recompute because scaling changed everything.)
+  scene.updateMatrixWorld(true);
+  const scaledBbox = new THREE.Box3().setFromObject(scene);
+  const scaledCenter = new THREE.Vector3();
+  scaledBbox.getCenter(scaledCenter);
+  scene.position.x -= scaledCenter.x;
+  scene.position.z -= scaledCenter.z;
+  scene.position.y -= scaledBbox.min.y;
+
+  console.log(`[modelLoader] ${id} normalized: native ${largestDim.toFixed(2)} → target ${targetSize} (×${scaleFactor.toFixed(3)})`);
+}
+
+/**
+ * Preload all models declared in MODEL_REGISTRY in parallel.
  * Safe to call multiple times — returns the same Promise on subsequent calls.
  * Models that fail to load (e.g. missing file) are skipped silently and the
  * corresponding getModel() call will return null, triggering procedural fallback.
@@ -85,21 +148,24 @@ export function preloadModels() {
   // draco.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
   // loader.setDRACOLoader(draco);
 
-  const tasks = Object.entries(MODEL_PATHS).map(([id, path]) =>
-    loader.loadAsync(path)
+  const tasks = Object.entries(MODEL_REGISTRY).map(([id, entry]) =>
+    loader.loadAsync(entry.path)
       .then((gltf) => {
-        modelCache.set(id, gltf.scene);
+        const scene = gltf.scene;
         // Walk the model and prepare meshes for shadows
-        gltf.scene.traverse((obj) => {
+        scene.traverse((obj) => {
           if (obj.isMesh) {
             obj.castShadow = true;
             obj.receiveShadow = true;
           }
         });
+        // Normalize the model to its target real-world size
+        normalizeModelSize(scene, entry.targetSize, id);
+        modelCache.set(id, scene);
         console.log(`[modelLoader] loaded ${id}`);
       })
       .catch((err) => {
-        console.warn(`[modelLoader] couldn't load ${id} from ${path} — falling back to procedural`, err.message);
+        console.warn(`[modelLoader] couldn't load ${id} from ${entry.path} — falling back to procedural`, err.message);
       })
   );
 
@@ -108,11 +174,11 @@ export function preloadModels() {
 }
 
 /**
- * Get a cloned instance of a loaded model. Returns null if the model isn't
- * loaded yet (or failed to load) — callers should fall back to procedural
- * geometry in that case.
+ * Get a cloned instance of a loaded model, pre-scaled to its target real-world size.
+ * Returns null if the model isn't loaded yet (or failed to load) — callers should
+ * fall back to procedural geometry in that case.
  *
- * @param {string} id — entry from MODEL_PATHS, e.g. 'cd', 'cassette'
+ * @param {string} id — entry from MODEL_REGISTRY, e.g. 'cd', 'cassette'
  * @returns {THREE.Group|null} a fresh clone of the model, or null
  */
 export function getModel(id) {
@@ -169,4 +235,14 @@ export function applyLabelToMesh(root, meshName, texture, matOptions = {}) {
  */
 export function hasModel(id) {
   return modelCache.has(id);
+}
+
+/**
+ * Get the target size for a given item type. Useful for the maker functions
+ * to know the canonical size if they need it (e.g. for positioning).
+ *
+ * @returns {number|null} target size in scene units, or null if not registered
+ */
+export function getTargetSize(id) {
+  return MODEL_REGISTRY[id]?.targetSize ?? null;
 }
