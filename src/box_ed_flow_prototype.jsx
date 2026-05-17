@@ -2325,7 +2325,7 @@ function initOpenBoxScene(mount, boxStyle, initialItems, initialLabel, callbacks
       cam.theta -= dx * 0.005;
       cam.phi -= dy * 0.004;
       // Keep close to iso — allow some wiggle but not full top/side
-      cam.phi = Math.max(ISO_PHI - 0.45, Math.min(ISO_PHI + 0.50, cam.phi));
+      cam.phi = Math.max(0.05, Math.min(ISO_PHI + 0.30, cam.phi));
       orbitLastX = e.clientX; orbitLastY = e.clientY;
       updateCamera();
     } else if (mode === 'pendingClick') {
